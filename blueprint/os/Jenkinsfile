@@ -1,0 +1,198 @@
+pipeline {
+  	agent {
+		node {
+		label "master"
+	    }
+	}
+
+  parameters {
+        string(name: 'deployment_id', defaultValue: 'test1', description: 'Please specify deployment id (UUID)')
+        string(name: 'cust_sub_id', description: 'Please specify CUST SUBSCRIPTION ID')
+		choice(name: 'cloud_provider', choices: ['azure', 'gcp', 'aws'], description: 'Please specify Cloud Provide name')
+		choice(name: 'blueprint_name', choices: ['os'], description: 'Provide blueprint name for provisioning' )
+		booleanParam(name: 'marketplace_blueprint', defaultValue: 'false', description: 'Please specify if this is application blueprint')
+		string(name: 'resource_group_name', defaultValue: 'CMP', description: 'Please Azure Resource Group Name')
+		booleanParam(name: 'boot_custom_image_name', defaultValue: 'true', description: 'Please specify if OS image is golden image')
+		string(name: 'custom_image_name', defaultValue: 'p-image-azure-21july', description: 'Please golden image name for VM')		
+		string(name: 'vm_hostname', defaultValue: 'mycentonserver', description: 'Please host name for VM')
+		string(name: 'vm_size', defaultValue: 'Standard_DS1_V2', description: 'Please size of VM')
+		string(name: 'azure_subscription_id', defaultValue: 'e24e76dc-df5a-4add-b57b-6aa3f0eae0ee', description: 'Please specify Azure Subscription ID')
+		string(name: 'azure_client_id', defaultValue: '49dc5041-2873-4ee7-9a05-33723de63dbf', description: 'Please specify Azure Client ID')
+		string(name: 'azure_client_secret', defaultValue: 'VdgxkF~M3-Kl004gGOdc1SS7a-q4kC.Lkh', description: 'Please specify Azure Client secret')
+		string(name: 'azure_tenant_id', defaultValue: '98f13429-d038-4e5e-85d8-846c6a963288', description: 'Please specify Azure Tenant ID')
+		string(name: 'location', defaultValue: 'westus2', description: 'Please specify Azure location')
+		string(name: 'nb_instances', defaultValue: '1', description: 'Please specify no. of instance to be deployed on Cloud')
+		string(name: 'nb_public_ip', defaultValue: '0', description: 'Please specify no. of public IP address attached to the VM')
+		string(name: 'vnet_subnet_id', defaultValue: '/subscriptions/e24e76dc-df5a-4add-b57b-6aa3f0eae0ee/resourceGroups/CMP/providers/Microsoft.Network/virtualNetworks/CMP-vnet/subnets/default', description: 'Please specify Azure Subnet ID')
+		booleanParam(name: 'data_disk', defaultValue: 'true', description: 'Please specify if you wish to add additonal persistent storage')
+		string(name: 'data_disk_size_gb', defaultValue: '64', description: 'Please specify additonal persistent storage size in GB')
+		string(name: 'data_sa_type', defaultValue: 'Standard_LRS', description: 'Please specify data disk type')
+		string(name: 'os_sa_type', defaultValue: 'Standard_LRS', description: 'Please specify OS disk type')
+		string(name: 'tags', defaultValue: '{"environment":"dev","costcenter":"it","deployement_id":"${BUILD_ID}"}', description: 'Please specify tags to apply to resources')
+		string(name: 'admin_username', defaultValue: 'azureuser', description: 'Please specify administrator user name for login')
+		string(name: 'admin_password', defaultValue: 'ComplxP@ssw0rd!', description: 'Please specify administrator password for login')
+		string(name: 'vm_os_publisher', defaultValue: 'OpenLogic', description: 'Please specify OS Publisher')
+		string(name: 'vm_os_offer', defaultValue: 'CentOS', description: 'Please specify OS Offer name')
+		string(name: 'vm_os_sku', defaultValue: '7.3', description: 'Please specify OS SKU')
+		string(name: 'vm_os_version', defaultValue: 'latest', description: 'Please specify OS version')
+		booleanParam(name: 'deploy_log_analytics_agent', defaultValue: 'false', description: 'Please specify if log analytics agent needs to be installed')
+		string(name: 'log_analytics_workspace_name', defaultValue: 'AzureLaaS', description: 'Please log analytics workspace name')		
+		booleanParam(name: 'is_windows_image', defaultValue: 'true', description: 'Please specify if image is windows image')
+		booleanParam(name: 'boot_diagnostics', defaultValue: 'true', description: 'Please specify if you want to enable boot diagnostics')
+		booleanParam(name: 'delete_os_disk_on_termination', defaultValue: 'true', description: 'Please specify if you want to delete OS disk on VM termination')
+		booleanParam(name: 'delete_data_disks_on_termination', defaultValue: 'true', description: 'Please specify if you want to delete data disk associated with VM on termination')
+		booleanParam(name: 'test_run', defaultValue: 'true', description: 'Please specify if this is test run')
+    }
+  stages {
+	stage("SCM Checkout") {
+		steps {
+			script {
+				sh "git config --global http.sslVerify false"
+			}
+			git branch: 'os-provision',
+			credentialsId: 'lwm-azure-devops',
+			url: 'https://10.137.193.23/TOPS/Light%20Weight%20Monitoring%20Solution/_git/hcmp-terraform'			
+		}
+	}
+		
+	stage('Terraform Preparation') {
+      steps {
+	dir("blueprints/${blueprint_name}") {  
+		replace_variable("deploy_log_analytics_agent", "${deploy_log_analytics_agent}")
+		replace_variable("log_analytics_workspace_name", "${log_analytics_workspace_name}")		
+		replace_variable("custom_image_name", "${custom_image_name}")
+		replace_variable("boot_custom_image_name", "${boot_custom_image_name}")
+		replace_variable("is_windows_image", "${is_windows_image}")
+		replace_variable("resource_group_name", "${resource_group_name}")
+		replace_variable("azure_subscription_id", "${azure_subscription_id}")
+		replace_variable("azure_client_id", "${azure_client_id}")
+		replace_variable("azure_client_secret", "${azure_client_secret}")
+		replace_variable("azure_tenant_id", "${azure_tenant_id}")
+		replace_variable("location", "${location}")
+		replace_variable("nb_instances", "${nb_instances}")
+		replace_variable("vnet_subnet_id", "${vnet_subnet_id}")
+		replace_variable("data_disk", "${data_disk}")
+		replace_variable("data_disk_size_gb", "${data_disk_size_gb}")
+		replace_variable("vm_hostname", "${vm_hostname}")
+		replace_variable("marketplace_blueprint", "${marketplace_blueprint}")
+		replace_variable("vm_size", "${vm_size}")		
+		replace_variable("admin_username", "${admin_username}")
+		replace_variable("admin_password", "${admin_password}")
+		replace_variable("vm_os_publisher", "${vm_os_publisher}")
+		replace_variable("vm_os_offer", "${vm_os_offer}")
+		replace_variable("vm_os_sku", "${vm_os_sku}")
+		replace_variable("vm_os_version", "${vm_os_version}")
+		replace_variable("storage_account_type", "${os_sa_type}")
+		replace_variable("data_sa_type", "${data_sa_type}")
+		replace_variable("boot_diagnostics", "${boot_diagnostics}")
+		replace_variable("delete_os_disk_on_termination", "${delete_os_disk_on_termination}")
+		replace_variable("delete_data_disks_on_termination", "${delete_data_disks_on_termination}")
+		replace_variable("nb_public_ip", "${nb_public_ip}")
+		replace_variable("tags", "${tags}")
+		//replace_tags("${tags}")
+		sh "cat main.tf"
+		//sh '/usr/local/bin/pip3.8 --proxy=http://10.144.100.14:8080 install psycopg2-binary'
+	  }
+       }
+    }
+    stage('Terraform Init') {
+      steps {
+		dir("blueprints/${blueprint_name}") {  
+			sh "terraform init -backend-config=\"conn_str=postgres://postgres:postgres@10.166.160.7/hcmp?sslmode=disable\" -input=false"
+			sh "terraform workspace new ${deployment_id}"
+			sh "terraform workspace select  ${deployment_id}"
+			sh "terraform workspace show"
+			sh "terraform state pull"
+		  }
+       }
+    }
+	stage('Accept Agreements') {
+      steps {
+		dir("blueprints/${blueprint_name}") {  
+			sh "python3 accept_terms.py -t ${azure_tenant_id} -c ${azure_client_id} -e ${azure_client_secret} -s ${azure_subscription_id} -p ${vm_os_publisher} -o ${vm_os_offer} -l ${vm_os_sku}"
+		  }
+       }
+    }
+    stage('Terraform Plan') {
+      steps {
+		dir("blueprints/${blueprint_name}") {   
+			sh "terraform plan -out=tfplan"
+			sh "terraform show -no-color tfplan > ${deployment_id}_tfplan.txt"
+		}
+      }
+    }
+   stage('Terraform Apply') {
+      when {
+		expression {
+			return !params.test_run
+		}
+      }
+      steps {
+		dir("blueprints/${blueprint_name}") {   
+			sh "terraform apply -input=false -auto-approve tfplan"
+			sh "terraform output"
+			sh "echo ***********************************"
+			sh "echo state information"
+			sh "echo ***********************************"
+			sh "terraform show -json"
+			sh "echo ***********************************"
+		}
+      }
+	  post {
+		failure {
+			echo 'FAILED (in Terraform Apply stage - should not happen :))'
+			script {
+				dir("blueprints/${blueprint_name}") {
+					def plan = readFile "${deployment_id}_tfplan.txt"
+					sh "terraform workspace select ${deployment_id}"
+					sh "terraform destroy -input=false -auto-approve"
+				}
+            }
+		}
+	  }
+
+    }
+  }
+  post {
+        always {
+			dir("blueprints/${blueprint_name}") {
+				archiveArtifacts artifacts: "${deployment_id}_tfplan.txt"
+				echo "Pipeline deployment id: ${deployment_id}"
+				echo "Pipeline build_number: ${env.BUILD_NUMBER}"
+				echo "Pipeline result: ${currentBuild.result}"
+				  
+				script {
+				   url = "http://10.160.128.113:30260/api/v1/callback/jenkins/callback/"
+				   build_data = sh (script:"python3 ../get_data.py ${deployment_id}",returnStdout: true).trim()
+				   echo "$build_data"
+				   
+				   response = sh(script: "curl -X POST -H 'Content-Type: application/json' -d '{\"deploymentId\":\"${deployment_id}\",\"status\":\"${currentBuild.result}\",\"cust_sub_id\":\"${cust_sub_id}\",\"build_data\":\"${build_data}\"}' $url",returnStdout: true).trim()
+				   echo "$response"
+				 }
+				//cleanWs()
+		   }
+        }
+    }
+}
+
+def replace_variable(String oldText, String newText) {
+	def text = readFile file: "main.tf"
+	text = text.replaceAll("%${oldText}%", "${newText}")
+	writeFile file: "main.tf", text: text
+}
+
+@NonCPS
+def replace_tags(txt){
+	def lazyMap = new groovy.json.JsonSlurper().parseText(txt)
+	def map = [:]
+	for ( prop in lazyMap ) {
+    	map[prop.key] = '"' + prop.value + '"'
+	}
+	def tf_tags = new StringBuilder().append("{")
+	for(element in map) {
+		tf_tags.append(element).append("\n")
+	}
+	tf_tags.append("}")
+	replace_variable("tags", tf_tags.toString())
+}
+
